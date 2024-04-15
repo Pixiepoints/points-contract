@@ -1,1 +1,1 @@
-# points-contract
+# Points Contract
