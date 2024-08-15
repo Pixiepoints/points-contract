@@ -162,6 +162,12 @@ message SetDappPointsRulesInput {
     PointsRuleList dapp_points_rules = 2;
 }
 
+message DappPointsRulesSet {
+    option (aelf.is_event) = true;
+    aelf.Hash dapp_id = 1;
+    PointsRuleList dapp_points_rules = 2;
+}
+
 message DappAdded {
     option (aelf.is_event) = true;
     aelf.Hash dapp_id = 1; 
@@ -213,12 +219,6 @@ message InviterApplied {
     aelf.Hash dapp_id = 2;
     aelf.Address invitee = 3;
     aelf.Address inviter = 4;
-}
-
-message DappPointsRuleChanged {
-    option (aelf.is_event) = true;
-    string service = 1;
-    PointsRuleList dapp_earning_rules = 2;
 }
 
 message PointInfo {

@@ -70,6 +70,38 @@ public partial class PointsContractTests
         getResult.Rule.KolPointsPercent.ShouldBe(1000000);
         getResult.Rule.InviterPointsPercent.ShouldBe(100000);
     }
+    
+    [Fact]
+    public async Task SetSelfIncreasingPointsRulesTests_Remove()
+    {
+        await Initialize();
+        var dappId = await AddDapp();
+        await CreatePoint(dappId);
+        await SetSelfIncreasingPointsRules(dappId);
+
+        var getResult = await PointsContractStub.GetSelfIncreasingPointsRule.CallAsync(
+            new GetSelfIncreasingPointsRuleInput
+            {
+                DappId = dappId
+            });
+        getResult.Rule.PointName.ShouldBe(SelfIncreasingPointName);
+        
+        var result = await PointsContractStub.SetSelfIncreasingPointsRules.SendAsync(
+            new SetSelfIncreasingPointsRulesInput
+            {
+                DappId = dappId
+            });
+        
+        getResult = await PointsContractStub.GetSelfIncreasingPointsRule.CallAsync(
+            new GetSelfIncreasingPointsRuleInput
+            {
+                DappId = dappId
+            });
+        getResult.Rule.ShouldBeNull();
+
+        var log = GetLogEvent<SelfIncreasingPointsRulesChanged>(result.TransactionResult);
+        log.PointName.ShouldBeEmpty();
+    }
 
     [Fact]
     public async Task SetSelfIncreasingPointsRulesTests_Fail()
@@ -84,10 +116,6 @@ public partial class PointsContractTests
         result = await PointsContractUserStub.SetSelfIncreasingPointsRules.SendWithExceptionAsync(
             new SetSelfIncreasingPointsRulesInput());
         result.TransactionResult.Error.ShouldContain("No permission.");
-
-        result = await PointsContractStub.SetSelfIncreasingPointsRules.SendWithExceptionAsync(
-            new SetSelfIncreasingPointsRulesInput { DappId = dappId });
-        result.TransactionResult.Error.ShouldContain("Invalid self-increasing points rules.");
 
         result = await PointsContractStub.SetSelfIncreasingPointsRules.SendWithExceptionAsync(
             new SetSelfIncreasingPointsRulesInput
@@ -271,5 +299,53 @@ public partial class PointsContractTests
         });
         point.Decimals.ShouldBe(8);
         point.TokenName.ShouldBe(SelfIncreasingPointName);
+    }
+    
+    [Fact]
+    public async Task SetDappPointsRulesTest()
+    {
+        await Initialize();
+        var dappId = await AddDapp();
+        await PointsContractStub.CreatePointList.SendAsync(new CreatePointListInput
+        {
+            DappId = dappId,
+            PointList = { new PointInfo
+            {
+                TokenName = "test",
+                Decimals = 8
+            } }
+        });
+
+        var list = new PointsRuleList
+        {
+            PointsRules =
+            {
+                new PointsRule
+                {
+                    ActionName = "Test",
+                    EnableProportionalCalculation = true,
+                    PointName = "test",
+                    UserPoints = 0,
+                    KolPointsPercent = 1600,
+                    InviterPointsPercent = 800
+                }
+            }
+        };
+
+        var result = await PointsContractStub.SetDappPointsRules.SendAsync(new SetDappPointsRulesInput
+        {
+            DappId = dappId,
+            DappPointsRules = list
+        });
+
+        var log = GetLogEvent<DappPointsRulesSet>(result.TransactionResult);
+        log.DappId.ShouldBe(dappId);
+        log.DappPointsRules.ShouldBe(list);
+
+        var output = await PointsContractStub.GetDappInformation.CallAsync(new GetDappInformationInput
+        {
+            DappId = dappId
+        });
+        output.DappInfo.DappsPointRules.ShouldBe(list);
     }
 }

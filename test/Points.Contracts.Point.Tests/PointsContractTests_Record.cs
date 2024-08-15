@@ -491,4 +491,89 @@ public partial class PointsContractTests
         });
         result.TransactionResult.Error.ShouldContain("Invalid inviter.");
     }
+
+    [Fact]
+    public async Task SettlePointsTests_PointsRuleNotSet()
+    {
+        const string domain = "user.com";
+
+        await Initialize();
+        var dappId = await AddDapp();
+        await SetMaxApplyCount();
+
+        var result = await PointsContractStub.ApplyToBeAdvocate.SendAsync(new ApplyToBeAdvocateInput
+        {
+            Domain = domain,
+            DappId = dappId,
+            Invitee = User2Address
+        });
+        result.TransactionResult.Status.ShouldBe(TransactionResultStatus.Mined);
+
+        var log = result.TransactionResult.Logs.FirstOrDefault(l => l.Name == nameof(PointsChanged));
+        log.ShouldBeNull();
+        
+        result = await PointsContractStub.Join.SendAsync(new JoinInput
+        {
+            Domain = domain,
+            DappId = dappId,
+            Registrant = UserAddress
+        });
+        result.TransactionResult.Status.ShouldBe(TransactionResultStatus.Mined);
+
+        log = result.TransactionResult.Logs.FirstOrDefault(l => l.Name == nameof(PointsChanged));
+        log.ShouldBeNull();
+        
+        result = await PointsContractStub.AcceptReferral.SendAsync(new AcceptReferralInput
+        {
+            DappId = dappId,
+            Invitee = DefaultAddress,
+            Referrer = UserAddress
+        });
+        result.TransactionResult.Status.ShouldBe(TransactionResultStatus.Mined);
+
+        log = result.TransactionResult.Logs.FirstOrDefault(l => l.Name == nameof(PointsChanged));
+        log.ShouldBeNull();
+    }
+    
+    [Fact]
+    public async Task SettlePointsTests_OnlySetSelfIncreasingPointsRule()
+    {
+        const string domain = "user.com";
+
+        await Initialize();
+        var dappId = await AddDapp();
+        await CreatePoint(dappId);
+        await SetSelfIncreasingPointsRules(dappId);
+        await SetMaxApplyCount();
+
+        var result = await PointsContractStub.ApplyToBeAdvocate.SendAsync(new ApplyToBeAdvocateInput
+        {
+            Domain = domain,
+            DappId = dappId,
+            Invitee = User2Address
+        });
+        result.TransactionResult.Status.ShouldBe(TransactionResultStatus.Mined);
+        
+        result = await PointsContractStub.Join.SendAsync(new JoinInput
+        {
+            Domain = domain,
+            DappId = dappId,
+            Registrant = UserAddress
+        });
+        result.TransactionResult.Status.ShouldBe(TransactionResultStatus.Mined);
+
+        var log = GetLogEvent<PointsChanged>(result.TransactionResult);
+        log.PointsChangedDetails.PointsDetails.First().ActionName.ShouldBe("SelfIncrease");
+        
+        result = await PointsContractStub.AcceptReferral.SendAsync(new AcceptReferralInput
+        {
+            DappId = dappId,
+            Invitee = DefaultAddress,
+            Referrer = UserAddress
+        });
+        result.TransactionResult.Status.ShouldBe(TransactionResultStatus.Mined);
+
+        log = GetLogEvent<PointsChanged>(result.TransactionResult);
+        log.PointsChangedDetails.PointsDetails.First().ActionName.ShouldBe("SelfIncrease");
+    }
 }
