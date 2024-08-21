@@ -56,6 +56,12 @@ public partial class PointsContract
             DappsPointRules = new PointsRuleList { PointsRules = { input.DappPointsRules.PointsRules } },
             DappContractAddress = info.DappContractAddress
         };
+        
+        Context.Fire(new DappPointsRulesSet
+        {
+            DappId = input.DappId,
+            DappPointsRules = input.DappPointsRules
+        });
 
         return new Empty();
     }
@@ -68,23 +74,38 @@ public partial class PointsContract
         // Assert(State.SelfIncreasingPointsRules[input.DappId] == null, "Self-increasing points rules already set.");
 
         var rule = input.SelfIncreasingPointsRule;
-        Assert(rule != null, "Invalid self-increasing points rules.");
-        Assert(!string.IsNullOrEmpty(rule.PointName) && State.PointInfos[input.DappId][rule.PointName] != null,
-            "Wrong points name input.");
-        Assert(rule.UserPoints > 0 && rule.KolPointsPercent > 0 && rule.InviterPointsPercent > 0,
-            "Points must be greater than 0.");
 
-        State.SelfIncreasingPointsRules[input.DappId] = rule;
-
-        Context.Fire(new SelfIncreasingPointsRulesChanged
+        // If input.SelfIncreasingPointsRule is null, remove the rule
+        if (rule == null)
         {
-            DappId = input.DappId,
-            PointName = rule.PointName,
-            UserPoints = rule.UserPoints,
-            KolPointsPercent = rule.KolPointsPercent,
-            InviterPointsPercent = rule.InviterPointsPercent,
-            Frequency = input.Frequency
-        });
+            State.SelfIncreasingPointsRules.Remove(input.DappId);
+            
+            Context.Fire(new SelfIncreasingPointsRulesChanged
+            {
+                DappId = input.DappId,
+                Frequency = input.Frequency
+            });
+        }
+        else
+        {
+            Assert(!string.IsNullOrEmpty(rule.PointName) && State.PointInfos[input.DappId][rule.PointName] != null,
+                "Wrong points name input.");
+            Assert(rule.UserPoints > 0 && rule.KolPointsPercent > 0 && rule.InviterPointsPercent > 0,
+                "Points must be greater than 0.");
+
+            State.SelfIncreasingPointsRules[input.DappId] = rule;
+            
+            Context.Fire(new SelfIncreasingPointsRulesChanged
+            {
+                DappId = input.DappId,
+                PointName = rule.PointName,
+                UserPoints = rule.UserPoints,
+                KolPointsPercent = rule.KolPointsPercent,
+                InviterPointsPercent = rule.InviterPointsPercent,
+                Frequency = input.Frequency
+            });
+        }
+        
         return new Empty();
     }
 
