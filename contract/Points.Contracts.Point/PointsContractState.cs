@@ -8,7 +8,7 @@ public partial class PointsContractState : ContractState
 {
     public SingletonState<bool> Initialized { get; set; }
     public SingletonState<Address> Admin { get; set; }
-    public SingletonState<ReservedDomainList> ReservedDomains { get; set; }
+    public MappedState<string, bool> ReservedDomainsMap { get; set; }
     public SingletonState<int> MaxApplyCount { get; set; }
     public MappedState<Hash, Address, string> RegistrationMap { get; set; }
     public MappedState<string, DomainRelationshipInfo> DomainsMap { get; set; }

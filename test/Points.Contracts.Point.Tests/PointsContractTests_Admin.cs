@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using AElf.Types;
@@ -69,39 +70,6 @@ public partial class PointsContractTests : PointsContractTestBase
 
         result = await PointsContractUserStub.SetAdmin.SendWithExceptionAsync(UserAddress);
         result.TransactionResult.Error.ShouldContain("No permission.");
-    }
-
-    [Fact]
-    public async Task SetReservedDomainListTests()
-    {
-        await Initialize();
-
-        var reservedDomains = new ReservedDomainList { Domains = { "abc.com", "bca.com", "cab.com" } };
-        await PointsContractStub.SetReservedDomainList.SendAsync(new SetReservedDomainListInput
-        {
-            ReservedDomainList = reservedDomains
-        });
-
-        var domains = await PointsContractStub.GetReservedDomainList.CallAsync(new Empty());
-        domains.ReservedDomainList.ShouldBe(reservedDomains);
-    }
-
-    [Fact]
-    public async Task SetReservedDomainListTests_Fail()
-    {
-        var result =
-            await PointsContractStub.SetReservedDomainList.SendWithExceptionAsync(new SetReservedDomainListInput());
-        result.TransactionResult.Error.ShouldContain("Not initialized.");
-
-        await Initialize();
-
-        result = await PointsContractUserStub.SetReservedDomainList
-            .SendWithExceptionAsync(new SetReservedDomainListInput());
-        result.TransactionResult.Error.ShouldContain("No permission.");
-
-        result = await PointsContractStub.SetReservedDomainList
-            .SendWithExceptionAsync(new SetReservedDomainListInput());
-        result.TransactionResult.Error.ShouldContain("Invalid reserved domain list count.");
     }
 
     [Fact]
@@ -212,6 +180,164 @@ public partial class PointsContractTests : PointsContractTestBase
         errorMaxApply = new Int32Value();
         result = await PointsContractStub.SetMaxApplyDomainCount.SendWithExceptionAsync(errorMaxApply);
         result.TransactionResult.Error.ShouldContain("Invalid input.");
+    }
+
+    [Fact]
+    public async Task AddReservedDomainsTests()
+    {
+        await Initialize();
+
+        var list = new List<string>
+        {
+            "domain.com"
+        };
+
+        var output = await PointsContractStub.CheckDomainReserved.CallAsync(new StringValue
+        {
+            Value = "domain.com"
+        });
+        output.Value.ShouldBeFalse();
+        
+        var result = await PointsContractStub.AddReservedDomains.SendAsync(new AddReservedDomainsInput
+        {
+            Domains = { list }
+        });
+        result.TransactionResult.Status.ShouldBe(TransactionResultStatus.Mined);
+
+        var log = GetLogEvent<ReservedDomainsAdded>(result.TransactionResult);
+        log.DomainList.Domains.ShouldBe(list);
+        
+        output = await PointsContractStub.CheckDomainReserved.CallAsync(new StringValue
+        {
+            Value = "domain.com"
+        });
+        output.Value.ShouldBeTrue();
+        
+        var dappId = await AddDapp();
+        await CreatePoint(dappId);
+        await SetDappPointsRules(dappId);
+        await SetSelfIncreasingPointsRules(dappId);
+        await SetMaxApplyCount();
+
+        result = await PointsContractStub.ApplyToBeAdvocate.SendWithExceptionAsync(new ApplyToBeAdvocateInput
+        {
+            DappId = dappId,
+            Domain = "domain.com",
+            Invitee = DefaultAddress
+        });
+        result.TransactionResult.Error.ShouldContain("This domain name is an officially reserved domain name");
+        
+        result = await PointsContractStub.AddReservedDomains.SendAsync(new AddReservedDomainsInput
+        {
+            Domains = { list }
+        });
+        
+        result.TransactionResult.Logs.Any(l => l.Name == nameof(ReservedDomainsAdded)).ShouldBeFalse();
+        
+        result = await PointsContractStub.AddReservedDomains.SendAsync(new AddReservedDomainsInput
+        {
+            Domains = { "" }
+        });
+        
+        result.TransactionResult.Logs.Any(l => l.Name == nameof(ReservedDomainsAdded)).ShouldBeFalse();
+        
+        result = await PointsContractStub.AddReservedDomains.SendAsync(new AddReservedDomainsInput
+        {
+            Domains = { "test.com", "test.com", "" }
+        });
+        GetLogEvent<ReservedDomainsAdded>(result.TransactionResult).DomainList.Domains.Count.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task AddReservedDomainsTests_Fail()
+    {
+        await Initialize();
+
+        var result = await PointsContractUserStub.AddReservedDomains.SendWithExceptionAsync(new AddReservedDomainsInput());
+        result.TransactionResult.Error.ShouldContain("No permission");
+        
+        result = await PointsContractStub.AddReservedDomains.SendWithExceptionAsync(new AddReservedDomainsInput());
+        result.TransactionResult.Error.ShouldContain("Invalid domains.");
+        
+        result = await PointsContractStub.AddReservedDomains.SendWithExceptionAsync(new AddReservedDomainsInput
+        {
+            Domains = {  }
+        });
+        result.TransactionResult.Error.ShouldContain("Invalid domains.");
+    }
+
+    [Fact]
+    public async Task RemoveReservedDomainsTests()
+    {
+        await Initialize();
+
+        var list = new List<string>
+        {
+            "domain.com"
+        };
+
+        await PointsContractStub.AddReservedDomains.SendAsync(new AddReservedDomainsInput { Domains = { list } });
+        
+        var dappId = await AddDapp();
+        await CreatePoint(dappId);
+        await SetDappPointsRules(dappId);
+        await SetSelfIncreasingPointsRules(dappId);
+        await SetMaxApplyCount();
+
+        var result = await PointsContractStub.ApplyToBeAdvocate.SendWithExceptionAsync(new ApplyToBeAdvocateInput
+        {
+            DappId = dappId,
+            Domain = "domain.com",
+            Invitee = DefaultAddress
+        });
+        result.TransactionResult.Error.ShouldContain("This domain name is an officially reserved domain name");
+
+        var output = await PointsContractStub.CheckDomainReserved.CallAsync(new StringValue
+        {
+            Value = "domain.com"
+        });
+        output.Value.ShouldBeTrue();
+        
+        result = await PointsContractStub.RemoveReservedDomains.SendAsync(new RemoveReservedDomainsInput
+        {
+            Domains = { list }
+        });
+        result.TransactionResult.Status.ShouldBe(TransactionResultStatus.Mined);
+
+        var log = GetLogEvent<ReservedDomainsRemoved>(result.TransactionResult);
+        log.DomainList.Domains.ShouldBe(list);
+        
+        output = await PointsContractStub.CheckDomainReserved.CallAsync(new StringValue
+        {
+            Value = "domain.com"
+        });
+        output.Value.ShouldBeFalse();
+
+        result = await PointsContractStub.ApplyToBeAdvocate.SendAsync(new ApplyToBeAdvocateInput
+        {
+            DappId = dappId,
+            Domain = "domain.com",
+            Invitee = DefaultAddress
+        });
+        result.TransactionResult.Status.ShouldBe(TransactionResultStatus.Mined);
+    }
+    
+    [Fact]
+    public async Task RemoveReservedDomainsTests_Fail()
+    {
+        await Initialize();
+
+        var result = await PointsContractUserStub.RemoveReservedDomains.SendWithExceptionAsync(new RemoveReservedDomainsInput());
+        result.TransactionResult.Error.ShouldContain("No permission");
+        
+        result = await PointsContractStub.RemoveReservedDomains.SendWithExceptionAsync(new RemoveReservedDomainsInput());
+        result.TransactionResult.Error.ShouldContain("Invalid domains.");
+        
+        result = await PointsContractStub.RemoveReservedDomains.SendWithExceptionAsync(new RemoveReservedDomainsInput
+        {
+            Domains = {  }
+        });
+        result.TransactionResult.Error.ShouldContain("Invalid domains.");
     }
 
     private async Task SetMaxApplyCount() => await PointsContractStub.SetMaxApplyDomainCount.SendAsync(DefaultMaxApply);
