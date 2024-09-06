@@ -1,5 +1,7 @@
+using System.Collections.Generic;
 using System.Linq;
 using AElf;
+using AElf.Sdk.CSharp;
 using AElf.Types;
 using Google.Protobuf.WellKnownTypes;
 
@@ -30,18 +32,6 @@ public partial class PointsContract : PointsContractContainer.PointsContractBase
         return new Empty();
     }
 
-    public override Empty SetReservedDomainList(SetReservedDomainListInput input)
-    {
-        AssertInitialized();
-        AssertAdmin();
-        Assert(input.ReservedDomainList?.Domains?.Count > 0, "Invalid reserved domain list count.");
-
-        var domains = input.ReservedDomainList.Domains.Distinct();
-        State.ReservedDomains.Value = new ReservedDomainList { Domains = { domains } };
-
-        return new Empty();
-    }
-
     public override Empty SetMaxApplyDomainCount(Int32Value input)
     {
         AssertInitialized();
@@ -49,6 +39,62 @@ public partial class PointsContract : PointsContractContainer.PointsContractBase
         Assert(input is { Value: > 0 }, "Invalid input.");
 
         State.MaxApplyCount.Value = input.Value;
+        return new Empty();
+    }
+
+    public override Empty AddReservedDomains(AddReservedDomainsInput input)
+    {
+        AssertAdmin();
+        Assert(input != null, "Invalid input.");
+        Assert(input!.Domains != null && input.Domains.Count > 0, "Invalid domains.");
+
+        var list = new List<string>();
+
+        foreach (var domain in input.Domains!.Distinct())
+        {
+            if (string.IsNullOrWhiteSpace(domain) || State.ReservedDomainsMap[domain]) continue;
+            State.ReservedDomainsMap[domain] = true;
+            list.Add(domain);
+        }
+
+        if (list.Count == 0) return new Empty();
+        
+        Context.Fire(new ReservedDomainsAdded
+        {
+            DomainList = new ReservedDomainList
+            {
+                Domains = { list }
+            }
+        });
+        
+        return new Empty();
+    }
+
+    public override Empty RemoveReservedDomains(RemoveReservedDomainsInput input)
+    {
+        AssertAdmin();
+        Assert(input != null, "Invalid input.");
+        Assert(input!.Domains != null && input.Domains.Count > 0, "Invalid domains.");
+
+        var list = new List<string>();
+
+        foreach (var domain in input.Domains!.Distinct())
+        {
+            if (string.IsNullOrWhiteSpace(domain) || !State.ReservedDomainsMap[domain]) continue;
+            State.ReservedDomainsMap[domain] = false;
+            list.Add(domain);
+        }
+        
+        if (list.Count == 0) return new Empty();
+        
+        Context.Fire(new ReservedDomainsRemoved
+        {
+            DomainList = new ReservedDomainList
+            {
+                Domains = { list }
+            }
+        });
+        
         return new Empty();
     }
 }

@@ -10,9 +10,6 @@ public partial class PointsContract
     public override Address GetAdmin(Empty input) => State.Admin.Value;
     public override Int32Value GetMaxApplyCount(Empty input) => new() { Value = State.MaxApplyCount.Value };
 
-    public override GetReservedDomainListOutput GetReservedDomainList(Empty input)
-        => new() { ReservedDomainList = State.ReservedDomains.Value };
-
     public override DomainRelationshipInfo GetDomainApplyInfo(StringValue domain) => State.DomainsMap[domain.Value];
 
     public override GetPointsBalanceOutput GetPointsBalance(GetPointsBalanceInput input)
@@ -88,5 +85,12 @@ public partial class PointsContract
     {
         if (!IsHashValid(input.DappId) || !IsAddressValid(input.Invitee)) return new ReferralRelationInfo();
         return State.ReferralRelationInfoMap[input.DappId]?[input.Invitee] ?? new ReferralRelationInfo();
+    }
+
+    public override BoolValue CheckDomainReserved(StringValue input)
+    {
+        return input != null && !string.IsNullOrWhiteSpace(input.Value)
+            ? new BoolValue { Value = State.ReservedDomainsMap[input.Value] }
+            : new BoolValue();
     }
 }
