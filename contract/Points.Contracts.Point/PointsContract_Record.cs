@@ -12,7 +12,7 @@ public partial class PointsContract
 {
     public override Empty Join(JoinInput input)
     {
-        AssertInitialized();
+        AssertInitialized();  
         var dappId = input.DappId;
         AssertDappContractAddress(dappId);
 
